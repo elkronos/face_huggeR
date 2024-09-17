@@ -1,0 +1,18 @@
+Package: Face_HuggeR
+Type: Package
+Title: Interface for Hugging Face Models in R
+Version: 0.1.0
+Author: Student, A [aut, cre]
+Maintainer: TBD
+Description: A set of functions to interface with Hugging Face models in R. This package allows users to load models, run inference, process outputs, and utilize the Hugging Face Inference API seamlessly in an R environment.
+License: MIT + file LICENSE
+Depends: R (>= 4.0.0)
+Imports:
+  reticulate,
+  tibble,
+  tm,
+  progress
+Suggests:
+  testthat
+Encoding: UTF-8
+LazyData: true
