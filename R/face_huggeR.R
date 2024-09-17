@@ -87,10 +87,10 @@ load_model_tokenizer <- function(model_name, task, device = "cpu", cache_dir = N
   cat("Initial cache_dir value:", cache_dir, "\n")
   
   if (is.null(cache_dir)) {
-    cache_dir <- path.expand("~/.cache/huggingface/")
+    cache_dir <- normalizePath("~/.cache/huggingface/", mustWork = FALSE)
     cat("Using default cache directory:", cache_dir, "\n")
   } else {
-    cache_dir <- path.expand(cache_dir)
+    cache_dir <- normalizePath(cache_dir, mustWork = FALSE)
     cat("Using specified cache directory:", cache_dir, "\n")
   }
   
@@ -118,7 +118,13 @@ load_model_tokenizer <- function(model_name, task, device = "cpu", cache_dir = N
     model_class$from_pretrained(model_name, cache_dir = cache_dir)
   }, error = function(e) {
     cat("Error loading model from cache or remote:\n")
-    print(reticulate::py_last_error())
+    py_err <- reticulate::py_last_error()
+    if (!is.null(py_err)) {
+      cat(py_err$type, ":", py_err$value, "\n")
+      cat("Traceback:\n", paste(py_err$traceback, collapse = "\n"), "\n")
+    } else {
+      cat("No Python error available.\n")
+    }
     stop("Failed to load model.")
   })
   
@@ -126,7 +132,13 @@ load_model_tokenizer <- function(model_name, task, device = "cpu", cache_dir = N
     transformers$AutoTokenizer$from_pretrained(model_name, cache_dir = cache_dir)
   }, error = function(e) {
     cat("Error loading tokenizer:\n")
-    print(reticulate::py_last_error())
+    py_err <- reticulate::py_last_error()
+    if (!is.null(py_err)) {
+      cat(py_err$type, ":", py_err$value, "\n")
+      cat("Traceback:\n", paste(py_err$traceback, collapse = "\n"), "\n")
+    } else {
+      cat("No Python error available.\n")
+    }
     stop("Failed to load tokenizer.")
   })
   
@@ -167,6 +179,7 @@ check_cuda_status <- function() {
     return(FALSE)
   }
 }
+
 
 #' Preprocess Text for NLP
 #'
