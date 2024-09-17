@@ -1,13 +1,5 @@
-required_packages <- c("reticulate", "tibble", "progress", "tm", "httr", "data.table")
 
-# Function to check if a package is installed, and install if missing
-for (pkg in required_packages) {
-  if (!requireNamespace(pkg, quietly = TRUE)) {
-    install.packages(pkg)
-  }
-  library(pkg, character.only = TRUE)
-}
-
+################################################################################ Local
 
 #' Load Required Modules for Model and Tokenizer
 #'
@@ -600,4 +592,347 @@ run_model_workflow <- function(model_name, task, texts, params, preprocess_text 
     result <- process_batch(model, tokenizer, texts, task, params)
     result
   }
+}
+
+################################################################################ API
+
+#' Hugging Face Model Inference API Request
+#'
+#' Sends input data to a specified Hugging Face model for inference using the Hugging Face Inference API. The function supports retries and exponential backoff in case of failures.
+#'
+#' @param model_name A character string representing the name of the Hugging Face model to use for inference.
+#' @param input_data A character string or a list of strings containing the input data to send to the model. Must be in a format suitable for the model.
+#' @param retries An integer specifying the number of retry attempts in case of a failed request. Default is `3`.
+#' @param pause A numeric value indicating the initial pause duration (in seconds) between retries. Default is `5`.
+#' @param api_key A character string representing the Hugging Face API key. If `NULL`, the API key will be retrieved using the `get_api_key` function.
+#' @param verbose A logical flag indicating whether to display detailed messages about the request process. Default is `TRUE`.
+#'
+#' @details
+#' This function constructs an API request to send the input data to the Hugging Face model specified by `model_name`. The `POST` request is sent to the Hugging Face Inference API. If the request fails or a rate limit is hit, the function retries the request with exponential backoff, up to the specified number of retries.
+#'
+#' The input data must be either a character string or a list of strings, as expected by the model.
+#'
+#' @return The parsed response from the Hugging Face Inference API. If all retry attempts fail, the function throws an error.
+#'
+#' @examples
+#' \dontrun{
+#' # Perform inference with a Hugging Face model
+#' response <- hf_api_inference(
+#'   model_name = "distilbert-base-uncased",
+#'   input_data = "This is a test input.",
+#'   api_key = "your_api_key_here"
+#' )
+#' 
+#' # Perform inference with retries and a list of inputs
+#' response <- hf_api_inference(
+#'   model_name = "gpt2",
+#'   input_data = list("Input 1", "Input 2"),
+#'   retries = 5,
+#'   pause = 10,
+#'   api_key = "your_api_key_here"
+#' )
+#' }
+#'
+#' @export
+hf_api_inference <- function(model_name, input_data, retries = 3, pause = 5, api_key = NULL, verbose = TRUE) {
+  url <- sprintf("https://api-inference.huggingface.co/models/%s", model_name)
+  
+  # Prepare the input data
+  if (is.character(input_data) || is.list(input_data)) {
+    body <- list(inputs = input_data)
+  } else {
+    stop("input_data must be a character string or a list of strings.")
+  }
+  
+  make_api_request(
+    method = "POST",
+    url = url,
+    body = body,
+    retries = retries,
+    pause = pause,
+    api_key = api_key,
+    verbose = verbose
+  )
+}
+
+#' Search Hugging Face Models by Task
+#'
+#' Searches for Hugging Face models based on a specified task using the Hugging Face API. The function supports retries and exponential backoff in case of failed requests.
+#'
+#' @param task A character string representing the task for which models should be filtered (e.g., "text-classification", "translation").
+#' @param retries An integer specifying the number of retry attempts in case of a failed request. Default is `3`.
+#' @param pause A numeric value indicating the initial pause duration (in seconds) between retries. Default is `5`.
+#' @param api_key A character string representing the Hugging Face API key. If `NULL`, the API key will be retrieved using the `get_api_key` function.
+#' @param verbose A logical flag indicating whether detailed messages should be displayed during the request process. Default is `TRUE`.
+#'
+#' @details
+#' This function constructs a `GET` request to the Hugging Face API to search for models that support the specified task. 
+#' If the request fails or hits a rate limit, the function retries the request using exponential backoff, up to the specified number of retries.
+#'
+#' The task filter allows users to search for models based on their specific use case, such as tasks like "text-generation", "sentiment-analysis", or "summarization".
+#'
+#' @return A parsed response from the Hugging Face API containing model information related to the specified task. If all retries fail, the function stops with an error.
+#'
+#' @examples
+#' \dontrun{
+#' # Search for models related to text classification
+#' models <- hf_api_model_search(
+#'   task = "text-classification",
+#'   api_key = "your_api_key_here"
+#' )
+#' 
+#' # Search for models with a different task and more retries
+#' models <- hf_api_model_search(
+#'   task = "translation",
+#'   retries = 5,
+#'   pause = 10,
+#'   api_key = "your_api_key_here"
+#' )
+#' }
+#'
+#' @export
+hf_api_model_search <- function(task, retries = 3, pause = 5, api_key = NULL, verbose = TRUE) {
+  url <- sprintf("https://huggingface.co/api/models?filter=task:%s", task)
+  
+  make_api_request(
+    method = "GET",
+    url = url,
+    retries = retries,
+    pause = pause,
+    api_key = api_key,
+    verbose = verbose
+  )
+}
+
+#' Batch Inference with Hugging Face Model
+#'
+#' Performs inference on a list of texts in batches using the specified Hugging Face model via the Hugging Face Inference API. The function processes the texts in smaller batches to handle large datasets efficiently, with support for retries and exponential backoff in case of failures.
+#'
+#' @param model_name A character string representing the name of the Hugging Face model to use for inference.
+#' @param texts A character vector or list of strings containing the input texts to be processed in batches.
+#' @param batch_size An integer specifying the number of texts to include in each batch. Default is `8`.
+#' @param retries An integer specifying the number of retry attempts in case of a failed request. Default is `3`.
+#' @param pause A numeric value indicating the initial pause duration (in seconds) between retries. Default is `5`.
+#' @param api_key A character string representing the Hugging Face API key. If `NULL`, the API key will be retrieved using the `get_api_key` function.
+#' @param verbose A logical flag indicating whether detailed messages should be displayed during the batch inference process. Default is `TRUE`.
+#'
+#' @details
+#' This function splits a list of input texts into smaller batches, each containing up to `batch_size` texts. It performs inference on each batch using the Hugging Face model specified by `model_name`. After processing all batches, it returns the combined results.
+#'
+#' The function supports retries with exponential backoff to handle errors or rate limits that may occur during API requests. 
+#' It is particularly useful when performing inference on a large number of texts.
+#'
+#' @return A list containing the results of the inference for all input texts.
+#'
+#' @examples
+#' \dontrun{
+#' # Perform batch inference with a Hugging Face model
+#' texts <- c("This is the first input.", "This is the second input.", "And so on...")
+#' results <- hf_api_inference_batch(
+#'   model_name = "distilbert-base-uncased",
+#'   texts = texts,
+#'   batch_size = 4,
+#'   api_key = "your_api_key_here"
+#' )
+#' 
+#' # Perform batch inference with different batch size and retries
+#' results <- hf_api_inference_batch(
+#'   model_name = "gpt2",
+#'   texts = texts,
+#'   batch_size = 10,
+#'   retries = 5,
+#'   api_key = "your_api_key_here"
+#' )
+#' }
+#'
+#' @export
+hf_api_inference_batch <- function(model_name, texts, batch_size = 8, retries = 3, pause = 5, api_key = NULL, verbose = TRUE) {
+  results <- list()
+  batches <- split(texts, ceiling(seq_along(texts) / batch_size))
+  
+  for (batch_index in seq_along(batches)) {
+    if (verbose) message(sprintf("Processing batch %d/%d", batch_index, length(batches)))
+    batch <- batches[[batch_index]]
+    output <- hf_api_inference(
+      model_name,
+      batch,
+      retries = retries,
+      pause = pause,
+      api_key = api_key,
+      verbose = verbose
+    )
+    results <- c(results, output)
+  }
+  return(results)
+}
+
+#' Compare Local Model Inference vs Hugging Face API Inference
+#'
+#' Compares the inference performance and results between a local model and a Hugging Face model accessed via the Hugging Face Inference API. The function measures execution time and outputs for both the local and API models.
+#'
+#' @param local_model The locally loaded model to use for inference. This model should be compatible with the `run_inference` function.
+#' @param tokenizer The tokenizer function or object to preprocess input texts for the local model.
+#' @param api_model_name A character string representing the name of the Hugging Face model to use for API inference.
+#' @param texts A character vector containing the input texts for inference.
+#' @param retries An integer specifying the number of retry attempts in case of a failed API request. Default is `3`.
+#' @param pause A numeric value indicating the initial pause duration (in seconds) between retries for the API request. Default is `5`.
+#' @param api_key A character string representing the Hugging Face API key. If `NULL`, the API key will be retrieved using the `get_api_key` function.
+#' @param verbose A logical flag indicating whether detailed messages should be displayed during the process. Default is `TRUE`.
+#'
+#' @details
+#' This function compares the inference times and outputs of a local model with those of a Hugging Face model accessed via the API. The user must provide the `tokenize_texts` and `run_inference` functions for the local model processing. It returns the inference times and results for both the local and API-based models.
+#'
+#' The outputs from both the local and API models are processed using the `process_local_output` and `process_api_output` functions (which should be defined by the user), allowing for a standardized comparison.
+#'
+#' @return A list containing two elements:
+#' \describe{
+#'   \item{local}{A list with the local model's inference time (in seconds) and outputs.}
+#'   \item{api}{A list with the API model's inference time (in seconds) and outputs.}
+#' }
+#'
+#' @examples
+#' \dontrun{
+#' # Compare a local model with a Hugging Face model for inference
+#' comparison <- compare_local_vs_api(
+#'   local_model = my_local_model,
+#'   tokenizer = my_tokenizer,
+#'   api_model_name = "distilbert-base-uncased",
+#'   texts = c("This is a test.", "Comparing models."),
+#'   api_key = "your_api_key_here"
+#' )
+#'
+#' # View the comparison of times and outputs
+#' print(comparison)
+#' }
+#'
+#' @export
+compare_local_vs_api <- function(
+    local_model,
+    tokenizer,
+    api_model_name,
+    texts,
+    retries = 3,
+    pause = 5,
+    api_key = NULL,
+    verbose = TRUE
+) {
+  if (!exists("tokenize_texts") || !exists("run_inference")) {
+    stop("Functions 'tokenize_texts' and 'run_inference' must be defined for local model inference.")
+  }
+  
+  # Placeholder functions for processing outputs (user should define these)
+  process_local_output <- function(output) {
+    # Convert local model output to a standardized format
+    return(output)
+  }
+  
+  process_api_output <- function(output) {
+    # Convert API model output to a standardized format
+    return(output)
+  }
+  
+  # Local model inference
+  local_time <- system.time({
+    local_outputs <- lapply(texts, function(text) {
+      inputs <- tokenize_texts(tokenizer, text)
+      output <- run_inference(local_model, inputs)
+      process_local_output(output)
+    })
+  })
+  
+  # API model inference
+  api_time <- system.time({
+    api_outputs <- lapply(texts, function(text) {
+      output <- hf_api_inference(
+        api_model_name,
+        text,
+        retries = retries,
+        pause = pause,
+        api_key = api_key,
+        verbose = verbose
+      )
+      process_api_output(output)
+    })
+  })
+  
+  # Comparison summary
+  list(
+    local = list(time = as.numeric(local_time["elapsed"]), outputs = local_outputs),
+    api = list(time = as.numeric(api_time["elapsed"]), outputs = api_outputs)
+  )
+}
+
+#' Benchmark Model Performance
+#'
+#' Benchmarks the performance of a model by measuring the total inference time and calculating accuracy (if expected labels are provided). The function applies a model to a list of texts and supports retries with exponential backoff.
+#'
+#' @param model_function A function representing the model inference method. The function should accept a text input and return an inference result.
+#' @param texts A character vector containing the input texts for benchmarking.
+#' @param retries An integer specifying the number of retry attempts in case of a failed request. Default is `3`.
+#' @param pause A numeric value indicating the initial pause duration (in seconds) between retries. Default is `5`.
+#' @param api_key A character string representing the API key to be passed to the model function, if needed. Default is `NULL`.
+#' @param expected_labels A list of expected labels for comparison with model results. If provided, accuracy will be computed. Default is `NULL`.
+#'
+#' @details
+#' This function benchmarks the performance of a model by applying `model_function` to a list of input texts. It measures the total time taken to perform inference and, if `expected_labels` are provided, calculates the accuracy of the model's predictions.
+#'
+#' The function supports retries for handling failed API requests or other issues, with an exponential backoff mechanism. It is suitable for evaluating model performance both in terms of time and accuracy.
+#'
+#' @return A list containing:
+#' \describe{
+#'   \item{total_time}{The total time (in seconds) taken to run inference on all texts.}
+#'   \item{accuracy}{The accuracy of the model's predictions compared to `expected_labels`, if provided. If `expected_labels` is `NULL`, accuracy is set to `NA`.}
+#'   \item{results}{A list of model inference results for each text.}
+#' }
+#'
+#' @examples
+#' \dontrun{
+#' # Benchmark a model with provided texts
+#' benchmark <- benchmark_model_performance(
+#'   model_function = hf_api_inference,
+#'   texts = c("This is a test.", "Benchmarking model."),
+#'   api_key = "your_api_key_here"
+#' )
+#'
+#' # Benchmark with expected labels for accuracy
+#' benchmark <- benchmark_model_performance(
+#'   model_function = hf_api_inference,
+#'   texts = c("This is a test.", "Benchmarking model."),
+#'   expected_labels = list("label1", "label2"),
+#'   api_key = "your_api_key_here"
+#' )
+#' 
+#' # View the benchmark results
+#' print(benchmark)
+#' }
+#'
+#' @export
+benchmark_model_performance <- function(
+    model_function,
+    texts,
+    retries = 3,
+    pause = 5,
+    api_key = NULL,
+    expected_labels = NULL
+) {
+  start_time <- Sys.time()
+  
+  results <- lapply(texts, function(text) {
+    model_function(text, retries = retries, pause = pause, api_key = api_key)
+  })
+  
+  total_time <- as.numeric(difftime(Sys.time(), start_time, units = "secs"))
+  
+  accuracy <- NA
+  if (!is.null(expected_labels)) {
+    if (length(results) != length(expected_labels)) {
+      stop("Length of results and expected labels do not match.")
+    }
+    correct <- sum(mapply(function(res, label) {
+      identical(res, label)
+    }, results, expected_labels))
+    accuracy <- correct / length(expected_labels)
+  }
+  
+  list(total_time = total_time, accuracy = accuracy, results = results)
 }
