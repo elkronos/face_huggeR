@@ -9,67 +9,55 @@ for (pkg in required_packages) {
 }
 
 
-#' Task Validator
+#' Validate Task
 #'
-#' Validates a given task against a set of valid tasks. The function checks if the provided task
-#' is part of a list of predefined tasks, and throws an error if the task is not supported.
+#' Validates if the provided task is supported.
 #'
-#' @param task Character string representing the task to be validated. Should match one of the valid tasks.
-#' @param valid_tasks A character vector containing valid task names. If the `task` is not part of this list, the function will throw an error.
+#' @param task Character string specifying the task to validate.
+#' @param valid_tasks A character vector of valid tasks.
 #'
-#' @details
-#' This function is useful in workflows where different tasks are supported (e.g., classification, generation).
-#' It ensures that only valid tasks proceed in the workflow. If the task is not valid, an informative error message
-#' is displayed.
+#' @return None. Stops execution if the task is invalid.
 #'
 #' @examples
 #' \dontrun{
-#' valid_tasks <- c("classification", "generation")
-#' validate_task("classification", valid_tasks)  # Passes
-#' validate_task("invalid_task", valid_tasks)    # Throws an error
+#' validate_task("classification", c("classification", "generation"))
 #' }
-#' 
+#'
 #' @export
 validate_task <- function(task, valid_tasks) {
   cat("Validating task:", task, "\n")
   if (!(task %in% valid_tasks)) {
-    stop(
-      sprintf(
-        "Unsupported task: '%s'. Supported tasks: %s.",
-        task,
-        paste(valid_tasks, collapse = ", ")
-      )
-    )
+    cat("Invalid task specified:", task, "\n")
+    stop("Invalid task specified.")
   }
   cat("Task validation passed:", task, "\n")
 }
 
-#' Device Validator
+
+#' Validate Device
 #'
-#' Validates whether the provided device is either "cpu" or "cuda". If an unsupported device is provided, 
-#' the function throws an error.
+#' Validates if the provided device is supported.
 #'
-#' @param device Character string representing the device to be validated. Can be either "cpu" or "cuda".
+#' @param device Character string specifying the device to validate.
 #'
-#' @details
-#' This function ensures that the user has provided a valid device type (e.g., for model inference). 
-#' If the device is not supported, the function will stop and display an error message.
+#' @return None. Stops execution if the device is invalid.
 #'
 #' @examples
 #' \dontrun{
-#' validate_device("cpu")   # Passes
-#' validate_device("cuda")  # Passes
-#' validate_device("gpu")   # Throws an error
+#' validate_device("cpu")
 #' }
 #'
 #' @export
 validate_device <- function(device) {
   cat("Validating device:", device, "\n")
-  if (!device %in% c("cpu", "cuda")) {
-    stop("Invalid device. Choose 'cpu' or 'cuda'.")
+  valid_devices <- c("cpu", "cuda")
+  if (!(device %in% valid_devices)) {
+    cat("Invalid device specified:", device, "\n")
+    stop("Invalid device specified.")
   }
   cat("Device validation passed:", device, "\n")
 }
+
 
 #' Softmax Calculation
 #'
