@@ -1,3 +1,24 @@
+#' Check and Load Required Packages
+#'
+#' This function checks if the required packages are installed and loads them. 
+#' If any package is missing, it installs them from CRAN.
+#'
+#' @return None. Prints messages indicating the installation status of packages.
+#' @export
+#'
+#' @examples
+#' check_and_load_packages()
+check_and_load_packages <- function() {
+  required_packages <- c("tm", "stringr", "reticulate", "tibble", "progress", "httr", "data.table")
+  
+  for (pkg in required_packages) {
+    if (!requireNamespace(pkg, quietly = TRUE)) {
+      install.packages(pkg)
+    }
+    library(pkg, character.only = TRUE)
+  }
+}
+
 #' Setup Python Environment using Miniconda and Reticulate
 #'
 #' This script provides a set of functions to automate the setup of a Python environment
@@ -222,20 +243,13 @@ import_python_modules <- function(modules) {
 #'
 #' @examples
 #' setup_python_environment()
-#' 
-#' # Custom setup example:
-#' setup_python_environment(
-#'   env_name = "my-custom-env",
-#'   python_version = "3.9",
-#'   python_packages = c("numpy", "pandas", "scikit-learn"),
-#'   modules_to_import = c("numpy", "pandas", "sklearn")
-#' )
 setup_python_environment <- function(
     env_name = "r-reticulate",
     python_version = "3.8",
     python_packages = c("transformers", "torch"),
     modules_to_import = c("transformers", "torch")
 ) {
+  check_and_load_packages()  # Call to check and load packages
   install_miniconda_if_missing()
   create_conda_env(env_name, python_version)
   install_python_packages(env_name, python_packages, use_pip = TRUE)

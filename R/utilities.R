@@ -1,13 +1,13 @@
 ################################################################################ Packages
-required_packages <- c("tm", "stringr",
-                       "reticulate", "tibble", "progress", "tm", "httr", "data.table")
-
-# Function to check if a package is installed, and install if missing
-for (pkg in required_packages) {
-  if (!requireNamespace(pkg, quietly = TRUE)) {
-    install.packages(pkg)
+check_and_load_packages <- function() {
+  required_packages <- c("tm", "stringr", "reticulate", "tibble", "progress", "httr", "data.table")
+  
+  for (pkg in required_packages) {
+    if (!requireNamespace(pkg, quietly = TRUE)) {
+      install.packages(pkg)
+    }
+    library(pkg, character.only = TRUE)
   }
-  library(pkg, character.only = TRUE)
 }
 
 ################################################################################ Local helpers
